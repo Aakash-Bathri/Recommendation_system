@@ -8,26 +8,40 @@ def load_dataset(root, name):
     Load the dataset from PyTorch Geometric
     
     Args:
-        root (str): Root directory where the dataset should be saved
+        root (str): Root directory where the dataseth should be saved
         name (str): Name of the dataset
         
     Returns:
-        data: PyTorch Geometric Data object
+        data: PyTorch Geometric Data objecto
     """
     print(f"Loading {name} dataset...")
     if name == 'Reddit':
         dataset = Reddit(root=root)
-        data = dataset[0]
+        data = dataset[0]  # Reddit dataset typically has one graph
+        
+        # Debugging: Check available attributes
+        print("Dataset attributes:", dir(data))
+        
+        #n Handle missing num_classes
+        if hasattr(data, 'num_classes'):
+            print(f"Number of classes: {data.num_classes}")
+        else:
+            print("Number of classes: Not available (num_classes attribute missing)")
+            # Fallback: Infer num_classes if possible
+            if hasattr(data, 'y'):
+                data.num_classes = len(torch.unique(data.y))
+                print(f"Inferred number of classes: {data.num_classes}")
+            else:
+                raise AttributeError("Cannot determine the number of classes. 'y' attribute is missing.")
+        
+        print(f"Dataset loaded successfully!")
+        print(f"Number of nodes: {data.num_nodes}")
+        print(f"Number of edges: {data.num_edges // 2}")  # Divide by 2 for undirected graphs
+        print(f"Number  of node features: {data.num_node_features}")
+        
+        return data
     else:
         raise ValueError(f"Dataset {name} is not supported")
-    
-    print(f"Dataset loaded successfully!")
-    print(f"Number of nodes: {data.num_nodes}")
-    print(f"Number of edges: {data.num_edges // 2}")  # Divide by 2 for undirected graphs
-    print(f"Number of node features: {data.num_node_features}")
-    print(f"Number of classes: {data.num_classes}")
-    
-    return data
 
 def load_dataset_in_chunks(root, name, save_dir='processed'):
     """
