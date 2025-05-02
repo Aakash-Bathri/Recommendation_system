@@ -74,22 +74,27 @@ class BatchHetInfLinkPred(nn.Module):
         else:
             # Process in batches (simple approach - not ideal for GNNs but can help with memory)
             embeddings = []
-            num_batches = (x.size(0) + batch_size - 1) // batch_size
-            
+            num_nodes = x.size(0)
+            num_batches = (num_nodes + batch_size - 1) // batch_size
+
             for i in range(num_batches):
-                start_idx = i * batch_size
-                end_idx = min((i + 1) * batch_size, x.size(0))
-                
-                # Filter edges relevant to this batch (simplified approach)
-                mask = (edge_index[0] >= start_idx) & (edge_index[0] < end_idx)
-                batch_edges = edge_index[:, mask]
-                
-                # Adjust edge indices to be relative to the batch
-                batch_edges[0] = batch_edges[0] - start_idx
-                batch_edges[1] = torch.clamp(batch_edges[1], min=0, max=end_idx-1)
-                
-                batch_x = x[start_idx:end_idx]
-                batch_embeddings = self.standard_model(batch_x, batch_edges)
-                embeddings.append(batch_embeddings)
-            
+                start = i * batch_size
+                end = min((i + 1) * batch_size, num_nodes)
+
+                # Select edges where both source and target are within this batch
+                node_mask = (edge_index[0] >= start) & (edge_index[0] < end) & \
+                            (edge_index[1] >= start) & (edge_index[1] < end)
+                batch_edges = edge_index[:, node_mask]
+
+                if batch_edges.size(1) == 0:
+                    # No valid edges in this batch, skip
+                    continue
+
+                # Re-index edge_index to batch-relative indices
+                batch_edges = batch_edges - start  # Shift node indices to start from 0
+
+                batch_x = x[start:end]
+                batch_out = self.standard_model(batch_x, batch_edges)
+                embeddings.append(batch_out)
+
             return torch.cat(embeddings, dim=0)

@@ -54,7 +54,7 @@ def calculate_metrics(pred_probs, true_labels):
         'tp': tp
     }
 
-def evaluate_model_detailed(model, decoder, data, device, batch_size=None):
+def evaluate_model_detailed(model, decoder, data, device, batch_size=128):
     """
     Evaluate the model with detailed metrics
     
@@ -75,9 +75,9 @@ def evaluate_model_detailed(model, decoder, data, device, batch_size=None):
         # Move data to device
         x = data.x.to(device)
         edge_index = data.edge_index.to(device)
-        
-        # Generate node embeddings
-        z = model(x, edge_index)
+
+        # Generate node embeddings using batch-capable model
+        z = model(x, edge_index, batch_size=batch_size)
         
         if batch_size is None:
             # Evaluate all edges at once
