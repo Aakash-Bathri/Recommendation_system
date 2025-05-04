@@ -11,10 +11,9 @@ import config
 from preprocessing.data_loader import load_dataset_in_chunks, load_processed_chunks
 from preprocessing.feature_engineering import generate_graph_features, combine_features
 from preprocessing.data_splitter import split_and_save_data, load_split_data
-from models.gnn_model import HetInfLinkPred, BatchHetInfLinkPred
-from models.link_decoder import LinkDecoder
-from training.trainer import ModelTrainer
-from training.evaluator import evaluate_and_visualize
+from models.gnn_model import BatchGNN
+from models.link_decoder import EnhancedDecoder
+from training.trainer import AdvancedTrainer
 from utils.metrics import evaluate_model_detailed
 from utils.visualization import plot_training_history, plot_all_evaluation_metrics
 
@@ -41,93 +40,62 @@ def parse_args():
                        help='Directory to save plots')
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoints',
                        help='Directory to save model checkpoints')
+    parser.add_argument('--pos_weight', type=float, default=5.0,
+                       help='Class weighting for positive samples')
+    parser.add_argument('--max_lr', type=float, default=0.005,
+                       help='Maximum learning rate for OneCycle policy')
+    parser.add_argument('--grad_clip', type=float, default=1.0,
+                       help='Gradient clipping threshold')
     return parser.parse_args()
 
 def initialize_model(args, chunk_info):
-    """Initialize model and decoder"""
-    model = BatchHetInfLinkPred(
-        
-        in_channels=603,
+    """Initialize model and decoder with improved architectures"""
+    # Use improved components
+    model = BatchGNN(
+        in_channels=603,  # Verify this matches your actual feature dimensions
         hidden_channels=args.hidden_channels,
         out_channels=args.out_channels,
-        dropout=0.5
+        heads=4,  # Add multi-head attention
+        dropout=0.3
     )
     
-    decoder = LinkDecoder(
+    decoder = EnhancedDecoder(  # Use enhanced decoder
         in_channels=args.out_channels,
-        hidden_layers=[512, 256],
-        dropout=0.3
+        hidden_dim=512,  # Match paper's hidden dimensions
+        dropout=0.4
     )
     
     return model, decoder
 
 def train_model(args, train_data, val_data):
-    """Train the model with evaluation"""
     import os
     # Load chunk info to get feature dimensions
     chunk_info = load_processed_chunks(args.data_dir)
     
     # Initialize model and optimizer
     model, decoder = initialize_model(args, chunk_info)
-    
-    trainer = ModelTrainer(
+    # Initialize trainer with advanced features
+    trainer = AdvancedTrainer(  # Use AdvancedTrainer instead of ModelTrainer
         model=model,
         decoder=decoder,
         device=config.DEVICE,
-        checkpoint_dir=args.checkpoint_dir
+        checkpoint_dir=args.checkpoint_dir,
+        pos_weight=5.0  # Adjust based on your class imbalance
     )
-
-    # Load from checkpoint if it exists
-    checkpoint_path = os.path.join(args.checkpoint_dir, "best_model.pt")
-    best_metrics = None
-    train_losses = []
-    val_metrics = []
-
-    if os.path.exists(checkpoint_path):
-        print(f"Resuming training from checkpoint: {checkpoint_path}")
-        trainer.load_checkpoint(checkpoint_path)
-        train_losses = trainer.train_losses
-        val_metrics = trainer.val_metrics
-        if val_metrics:
-            best_metrics = max(val_metrics, key=lambda m: m['auc'])
-
-    print(f"\n=== Training for {args.epochs} epochs ===")
-    for epoch in tqdm(range(1, args.epochs + 1)):
-        # Train epoch
-        loss = trainer.train_epoch_batched(train_data, batch_size=args.batch_size)
-        train_losses.append(loss)
-        
-        # Validate every 2 epochs
-        if epoch % 2 == 0 or epoch == args.epochs:
-            metrics = evaluate_model_detailed(
-                model, decoder, val_data, config.DEVICE, args.batch_size
-            )
-            val_metrics.append(metrics)
-            
-            print(f"\nEpoch {epoch:03d}:")
-            print(f"Train Loss: {loss:.4f}")
-            print(f"Val AUC: {metrics['auc']:.4f}, Val AP: {metrics['ap']:.4f}")
-            
-            # Save best model
-            if best_metrics is None or metrics['auc'] > best_metrics['auc']:
-                best_metrics = metrics
-                trainer.train_losses = train_losses
-                trainer.val_metrics = val_metrics
-                trainer.save_checkpoint(f"best_model.pt")
-                print("Saved new best model")
-                
-            # Early stopping check
-            if epoch > args.patience:
-                recent_auc = [m['auc'] for m in val_metrics[-args.patience:]]
-                if max(recent_auc) < best_metrics['auc']:
-                    print(f"Early stopping at epoch {epoch}")
-                    break
     
-    # Plot training history
-    plot_training_history(train_losses, val_metrics, save_dir=args.plot_dir)
+    # Remove manual epoch loop - use built-in train() method
+    trainer.train(
+        train_data,
+        val_data,
+        epochs=args.epochs,
+        batch_mode=True,
+        eval_batch_size=args.batch_size,
+        early_stop=args.patience
+    )
     
-    return model, decoder, best_metrics
-
+    trainer.plot_training_history(save_dir=args.plot_dir)
+    
+    return model, decoder, trainer.best_auc
 
 def evaluate_model(args, model, decoder, test_data):
     """Evaluate model on test set"""
@@ -163,8 +131,11 @@ def main():
         # Load best model for evaluation
         chunk_info = load_processed_chunks(args.data_dir)
         model, decoder = initialize_model(args, chunk_info)
-        trainer = ModelTrainer(model, decoder, device=config.DEVICE)
-        trainer.load_checkpoint(f"{args.checkpoint_dir}/best_model.pt")
+        trainer = AdvancedTrainer(model, decoder, device=config.DEVICE)
+        trainer.load_checkpoint(f"{args.checkpoint_dir}/best_model.pth")
+        
+        model = trainer.model
+        decoder = trainer.decoder
     
     if args.phase in ['evaluate', 'all']:
         test_metrics = evaluate_model(args, model, decoder, test_data)
