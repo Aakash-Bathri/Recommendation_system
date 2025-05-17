@@ -97,9 +97,9 @@ def load_split_data(processed_dir):
     Returns:
         train_data, val_data, test_data: Split data objects
     """
-    train_data = torch.load(f"{processed_dir}/train_data.pt")
-    val_data = torch.load(f"{processed_dir}/val_data.pt")
-    test_data = torch.load(f"{processed_dir}/test_data.pt")
+    train_data = torch.load(f"{processed_dir}/train_data.pt", weights_only=False)
+    val_data = torch.load(f"{processed_dir}/val_data.pt", weights_only=False)
+    test_data = torch.load(f"{processed_dir}/test_data.pt", weights_only=False)
     
     print("Loaded split data:")
     print(f"Train edges: {train_data.edge_label_index.size(1)}")

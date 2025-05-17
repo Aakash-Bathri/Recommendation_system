@@ -25,8 +25,8 @@ DECODER_HIDDEN_LAYERS = [512, 256]
 # Training configuration
 LEARNING_RATE = 0.001
 WEIGHT_DECAY = 5e-4
-BATCH_SIZE = 4096
-MAX_EPOCHS = 100
+BATCH_SIZE = 512
+MAX_EPOCHS = 30
 PATIENCE = 10
 LR_FACTOR = 0.5
 LR_PATIENCE = 5
@@ -41,5 +41,5 @@ os.makedirs(PLOT_SAVE_PATH, exist_ok=True)
 
 # Device configuration
 import torch
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device('cpu')
 CUDA_VERSION = 'cpu' if not torch.cuda.is_available() else f'cu{torch.version.cuda.replace(".", "")}'
